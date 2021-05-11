@@ -35,7 +35,7 @@ def get_data(tokenizer, data_path, meme_feature_path):
             pair = {'history': copy.deepcopy(history), 'answer': copy.deepcopy(dialog[i])} 
             dialog_list.append(pair) 
             history.append(dialog[i]) 
-        break 
+        # break 
     id2feature = json.load(open(meme_feature_path, 'r', encoding='utf-8')) 
     return dialog_list, id2feature 
 
@@ -52,8 +52,8 @@ class MODDataset(Dataset):
     def __getitem__(self, index): 
         his = copy.deepcopy(self.dialogs[index]['history']) 
         ans = copy.deepcopy(self.dialogs[index]['answer']) 
-        print(his)
-        print(ans)
+        #print(his)
+        #print(ans)
         history_txt, histroy_img, token_type_ids, labels = build_input_from_segments(his, ans, self.tokenizer, self.id2feature) 
         history_txt = torch.LongTensor(history_txt) 
         histroy_img = torch.from_numpy(np.array(histroy_img)).float() 
@@ -100,6 +100,11 @@ def build_input_from_segments(history, answer, tokenizer, id2feature):
             history_txt = content + history_txt 
             token_type_ids = [speaker_id] * len(content) + token_type_ids 
             labels = [-100] * len(content) + labels 
+        else: 
+            content = [bos] + [eos] 
+            history_txt = content + history_txt 
+            token_type_ids = [speaker_id] * len(content) + token_type_ids 
+            labels = [-100] * len(content) + labels 
     
         history_txt = [speaker_id] + history_txt 
         token_type_ids = [speaker_id] + token_type_ids 
@@ -117,6 +122,12 @@ def build_input_from_segments(history, answer, tokenizer, id2feature):
         history_txt += content 
         token_type_ids += [speaker_id] * len(content) 
         labels += content 
+    else: 
+        content = [bos] + [eos] 
+        history_txt += content 
+        token_type_ids += [speaker_id] * len(content) 
+        labels += content 
+    
     labels += [-100, -100] 
     history_txt += [tag] 
     token_type_ids += [img] 
@@ -124,13 +135,13 @@ def build_input_from_segments(history, answer, tokenizer, id2feature):
         history_img += [id2feature[answer['img_id']]] 
     else:
         history_img += [[0.0]*512] 
-    return history_txt, history_img, token_type_ids, labels 
+    return history_txt, history_img, token_type_ids, labels[1:] 
 
 
 if __name__ == '__main__': 
     data_path = 'data/dialog/en_data.json' 
     meme_feature_path = 'data/meme/id2feature.json'
-    tokenizer = GPT2Tokenizer.from_pretrained('ckpt', do_lower_case=True)
+    tokenizer = GPT2Tokenizer.from_pretrained('ckpt/origin_gpt', do_lower_case=True)
     tokenizer.add_special_tokens(SPECIAL_TOKENS_DICT)
     dialog_list, id2feature = get_data(tokenizer, data_path, meme_feature_path) 
     # print(dialog_list[1]) 
@@ -138,5 +149,6 @@ if __name__ == '__main__':
     dataset = MODDataset(dialog_list, id2feature, tokenizer) 
     history_txt, history_img, token_type_ids, labels = dataset[0]
     print(tokenizer.convert_ids_to_tokens(history_txt))
+    print(history_img.size())
     print(tokenizer.convert_ids_to_tokens(token_type_ids))
     print(tokenizer.convert_ids_to_tokens(labels))
